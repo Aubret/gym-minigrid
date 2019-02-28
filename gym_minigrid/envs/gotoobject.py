@@ -21,7 +21,7 @@ class GoToObjectEnv(MiniGridEnv):
             see_through_walls=True
         )
 
-    def _gen_grid(self, width, height):
+    def _gen_grid(self, width, height,**kwargs):
         self.grid = Grid(width, height)
 
         # Generate the surrounding walls

@@ -7,6 +7,72 @@ import numpy as np
 import gym
 from gym import error, spaces, utils
 
+
+class FlatImgWrapper(gym.core.ObservationWrapper):
+    """
+    Encode mission strings using a one-hot scheme,
+    and combine these with observed images into one flat array
+    """
+
+    def __init__(self, env):
+        super().__init__(env)
+
+        imgSpace = env.observation_space.spaces['image']
+        imgSize = reduce(operator.mul, imgSpace.shape, 1)
+
+        self.observation_space = spaces.Box(
+            low=0,
+            high=9,
+            shape=(imgSize,),
+            dtype='uint8'
+        )
+
+    def observation(self, obs):
+        image = obs['image']
+        obs = image.flatten()
+        return obs
+
+
+class AutoReset(gym.core.Wrapper):
+    """
+    Automatically reset the environment after a done step
+    """
+    def __init__(self, env):
+        super().__init__(env)
+        #self.__dict__.update(vars(env))#add for example num env to the variables
+
+
+    def step(self, action):
+        obs, rewards, dones, info = self.env.step(action)
+        if dones :
+            obs = self.env.reset()
+        return obs,rewards,dones,info
+
+    def reset(self, **kwargs):
+        return self.env.reset(**kwargs)
+
+class ExtendNenv(gym.core.Wrapper):
+    """
+    Makes data compatible with openai baseline, particularly the num_envs parameter
+    """
+
+    def __init__(self, env):
+        super().__init__(env)
+        #self.__dict__.update(vars(env))
+        self.num_envs=1
+        #self.__dict__.update({"num_envs":1})
+        #print(vars(self))
+
+
+    def step(self, action):
+        obs, rewards, dones, info = self.env.step(action)
+        return np.expand_dims(obs,axis=0),np.expand_dims(rewards,axis=0),np.expand_dims(dones,axis=0),info
+
+    def reset(self, **kwargs):
+        obs = self.env.reset(**kwargs)
+        return np.expand_dims(obs, axis=0)
+
+
 class ActionBonus(gym.core.Wrapper):
     """
     Wrapper which adds an exploration bonus.
@@ -88,6 +154,31 @@ class ImgObsWrapper(gym.core.ObservationWrapper):
     def observation(self, obs):
         return obs['image']
 
+class FullyFlatObsWrapper(gym.core.ObservationWrapper):
+    """
+    Fully observable gridworld using a compact grid encoding
+    """
+
+    def __init__(self, env):
+        super().__init__(env)
+        self.__dict__.update(vars(env))  # hack to pass values to super wrapper
+        self.observation_space = spaces.Box(
+            low=0,
+            high=10,
+            shape=(self.env.width*self.env.height*3,),  # number of cells
+            dtype='uint8'
+        )
+    def observation(self, obs):
+        #full_grid = self.env.grid.encode().flatten()
+        #index = 3*(self.env.agent_pos[0]+self.env.width*self.env.agent_pos[1])
+        #full_grid[index:index+3] = np.array([255, self.env.agent_dir, 0])
+        full_grid = self.env.grid.encode()
+        full_grid[self.env.agent_pos[0]][self.env.agent_pos[1]] = np.array([10, self.env.agent_dir, 0])
+        full_grid = full_grid.flatten()
+        return full_grid
+
+
+
 class FullyObsWrapper(gym.core.ObservationWrapper):
     """
     Fully observable gridworld using a compact grid encoding
@@ -102,7 +193,6 @@ class FullyObsWrapper(gym.core.ObservationWrapper):
             shape=(self.env.width, self.env.height, 3),  # number of cells
             dtype='uint8'
         )
-
     def observation(self, obs):
         full_grid = self.env.grid.encode()
         full_grid[self.env.agent_pos[0]][self.env.agent_pos[1]] = np.array([255, self.env.agent_dir, 0])
@@ -158,3 +248,38 @@ class FlatObsWrapper(gym.core.ObservationWrapper):
         obs = np.concatenate((image.flatten(), self.cachedArray.flatten()))
 
         return obs
+
+class PosWrapper(gym.core.ObservationWrapper):
+    """
+    Fully observable gridworld using a compact grid encoding
+    """
+
+    def __init__(self, env):
+        super().__init__(env)
+        self.__dict__.update(vars(env))  # hack to pass values to super wrapper
+        self.observation_space = spaces.Box(
+            low=0,
+            high=max(self.env.width,self.env.height),
+            shape=(6,),  # number of cells
+            dtype='uint8'
+        )
+    def observation(self, obs):
+        dir = np.zeros(4,dtype=float)
+        dir[self.env.agent_dir]=1.
+        position = np.asarray([self.env.agent_pos[0],self.env.agent_pos[1]])
+        return np.concatenate((position,dir))
+
+"""
+class SimpleActionWrapper(gym.core.ActionWrapper):
+    def step(self, action):
+        action = self.action(action)
+        return self.env.step(action)
+
+    def reset(self):
+        return self.env.reset()
+
+    def action(self, action):
+        deprecated_warn_once("%s doesn't implement 'action' method. Maybe it implements deprecated '_action' method." % type(self))
+        return self._action(action)
+
+"""

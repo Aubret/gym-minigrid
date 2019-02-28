@@ -49,7 +49,8 @@ OBJECT_TO_IDX = {
     'ball'          : 6,
     'box'           : 7,
     'goal'          : 8,
-    'lava'          : 9
+    'lava'          : 9,
+    'stat'          : 1 #same as empty for the agent
 }
 
 IDX_TO_OBJECT = dict(zip(OBJECT_TO_IDX.values(), OBJECT_TO_IDX.keys()))
@@ -83,6 +84,10 @@ class WorldObj:
 
         # Current position of the object
         self.cur_pos = None
+
+
+    def change(self,color):
+        """Default do nothing"""
 
     def can_overlap(self):
         """Can the agent overlap with this?"""
@@ -361,19 +366,58 @@ class Box(WorldObj):
         env.grid.set(*pos, self.contains)
         return True
 
+class Stat(WorldObj):
+    def __init__(self, value):
+        super(Stat, self).__init__('stat', 'blue')
+        self.change(value)
+
+
+    def change(self,value):
+        assert value.shape[0]==2, "Stat object works only with two dimensionnal np array"
+        sum = value.sum()
+        if sum != 0:
+            color = np.copy(value).astype(float)*255./float(sum) # normalize between 0 and 1 and multiply by 255
+        else:
+            color = np.zeros(value.shape[0])
+        self.color = np.insert(color,1,0)
+
+    def can_overlap(self):
+        """Can the agent overlap with this?"""
+        return True
+
+    def render(self, r):
+        c = self.color
+        r.setLineColor(c[0], c[1], c[2])
+        r.setColor(c[0], c[1], c[2])
+        r.drawPolygon([
+            (0          , CELL_PIXELS),
+            (CELL_PIXELS, CELL_PIXELS),
+            (CELL_PIXELS,           0),
+            (0          ,           0)
+        ])
+
+
 class Grid:
     """
     Represent a grid and operations on it
     """
 
-    def __init__(self, width, height):
+    def __init__(self, width, height,stat=None):
         assert width >= 3
         assert height >= 3
 
         self.width = width
         self.height = height
 
+
         self.grid = [None] * width * height
+
+        if stat is not None:
+            assert stat.shape[0] == width and stat.shape[1]==height, "Stat has not the right shape"
+            for i in range(width):
+                for j in range(height):
+                    self.set(i,j,Stat(value=stat[i][j]))
+
 
     def __contains__(self, key):
         if isinstance(key, WorldObj):
@@ -544,7 +588,7 @@ class Grid:
                             state = 2
 
                         array[i, j, 0] = OBJECT_TO_IDX[v.type]
-                        array[i, j, 1] = COLOR_TO_IDX[v.color]
+                        array[i, j, 1] = COLOR_TO_IDX[v.color] if isinstance(v.color, str) else 0
                         array[i, j, 2] = state
 
         return array
@@ -552,7 +596,7 @@ class Grid:
     @staticmethod
     def decode(array):
         """
-        Decode an array grid encoding back into a grid
+        Decode an array grid encoding back into a grid, not compatible with stats
         """
 
         width, height, channels = array.shape
@@ -589,6 +633,9 @@ class Grid:
                     v = Goal()
                 elif objType == 'lava':
                     v = Lava()
+                elif objType == 'stat':
+                    print("ayayayaie")
+                    v=Stat(value=np.asarray([0,0,0]))
                 else:
                     assert False, "unknown obj type in decode '%s'" % objType
 
@@ -664,12 +711,15 @@ class MiniGridEnv(gym.Env):
 
     def __init__(
         self,
+        goal=None,
         grid_size=None,
         width=None,
         height=None,
         max_steps=100,
         see_through_walls=False,
-        seed=1337
+        seed=1337,
+        stats=None,
+        render_stats=False
     ):
         # Can't set both grid_size and width/height
         if grid_size:
@@ -713,10 +763,15 @@ class MiniGridEnv(gym.Env):
         # Starting position and direction for the agent
         self.start_pos = None
         self.start_dir = None
+        if stats is True:
+            self.stats = np.zeros((self.width,self.height)+goal.shape)
+        else :
+            self.stats = stats
+        self.goal=goal
+        self.render_stats = render_stats
 
         # Initialize the RNG
         self.seed(seed=seed)
-
         # Initialize the state
         self.reset()
 
@@ -724,7 +779,9 @@ class MiniGridEnv(gym.Env):
         # Generate a new random grid at the start of each episode
         # To keep the same grid for each episode, call env.seed() with
         # the same seed before calling env.reset()
-        self._gen_grid(self.width, self.height)
+        stats_to_render = self.stats if self.render_stats else None
+        #print(stats_to_render)
+        self._gen_grid(self.width, self.height,stats=stats_to_render)
 
         # These fields should be defined by _gen_grid
         assert self.start_pos is not None
@@ -743,6 +800,7 @@ class MiniGridEnv(gym.Env):
 
         # Step count since episode start
         self.step_count = 0
+
 
         # Return first observation
         obs = self.gen_obs()
@@ -818,7 +876,7 @@ class MiniGridEnv(gym.Env):
 
         return str
 
-    def _gen_grid(self, width, height):
+    def _gen_grid(self, width, height,**kwargs):
         assert False, "_gen_grid needs to be implemented by each environment"
 
     def _reward(self):
@@ -1090,7 +1148,14 @@ class MiniGridEnv(gym.Env):
 
         return obs_cell is not None and obs_cell.type == world_cell.type
 
-    def step(self, action):
+    def change_pos(self,old_pos,new_pos,goal):
+        if self.stats is not None:
+            x,y=new_pos
+            self.stats[x][y] += goal
+            if self.grid.get(x,y)is not None and self.grid.get(x,y).type == "stat":
+                self.grid.get(x,y).change(self.stats[x][y])
+
+    def step(self, action,goal_end=True):
         self.step_count += 1
 
         reward = 0
@@ -1115,9 +1180,11 @@ class MiniGridEnv(gym.Env):
         # Move forward
         elif action == self.actions.forward:
             if fwd_cell == None or fwd_cell.can_overlap():
+                self.change_pos(self.agent_pos,fwd_pos,self.goal)
                 self.agent_pos = fwd_pos
             if fwd_cell != None and fwd_cell.type == 'goal':
-                done = True
+                if goal_end :
+                    done = True
                 reward = self._reward()
             if fwd_cell != None and fwd_cell.type == 'lava':
                 done = True
@@ -1154,7 +1221,11 @@ class MiniGridEnv(gym.Env):
 
         obs = self.gen_obs()
 
-        return obs, reward, done, {}
+        infos = {"agent_pos":self.agent_pos}
+        if self.stats is not None :
+            infos["stats"]=self.stats
+
+        return obs, reward, done, infos
 
     def gen_obs_grid(self):
         """
@@ -1335,3 +1406,7 @@ class MiniGridEnv(gym.Env):
             return r.getPixmap()
 
         return r
+
+    def put_stats(self,stats):
+        self.stats = stats
+     #   stats = stats if stats is not None else self.stats

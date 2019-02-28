@@ -20,7 +20,7 @@ class CrossingEnv(MiniGridEnv):
             seed=None
         )
 
-    def _gen_grid(self, width, height):
+    def _gen_grid(self, width, height,**kwargs):
         assert width % 2 == 1 and height % 2 == 1  # odd size
 
         # Create an empty grid

@@ -25,7 +25,7 @@ class ObstructedMazeEnv(RoomGrid):
             seed=seed
         )
 
-    def _gen_grid(self, width, height):
+    def _gen_grid(self, width, height,**kwargs):
         super()._gen_grid(width, height)
 
         # Define all possible colors for doors

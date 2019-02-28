@@ -17,7 +17,7 @@ class Unlock(RoomGrid):
             seed=seed
         )
 
-    def _gen_grid(self, width, height):
+    def _gen_grid(self, width, height,**kwargs):
         super()._gen_grid(width, height)
 
         # Make sure the two rooms are directly connected by a locked door

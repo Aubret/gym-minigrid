@@ -23,7 +23,7 @@ class KeyCorridor(RoomGrid):
             seed=seed,
         )
 
-    def _gen_grid(self, width, height):
+    def _gen_grid(self, width, height,**kwargs):
         super()._gen_grid(width, height)
 
         # Connect the middle column rooms into a hallway

@@ -18,7 +18,7 @@ class BlockedUnlockPickup(RoomGrid):
             seed=seed
         )
 
-    def _gen_grid(self, width, height):
+    def _gen_grid(self, width, height,**kwargs):
         super()._gen_grid(width, height)
 
         # Add a box to the room on the right
