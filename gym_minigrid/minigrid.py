@@ -85,10 +85,6 @@ class WorldObj:
         # Current position of the object
         self.cur_pos = None
 
-
-    def change(self,color):
-        """Default do nothing"""
-
     def can_overlap(self):
         """Can the agent overlap with this?"""
         return False
@@ -367,19 +363,33 @@ class Box(WorldObj):
         return True
 
 class Stat(WorldObj):
-    def __init__(self, value):
+    def __init__(self, value,total_sum=0):
         super(Stat, self).__init__('stat', 'blue')
-        self.change(value)
+        self.change(value,total_sum)
 
-
-    def change(self,value):
-        assert value.shape[0]==2, "Stat object works only with two dimensionnal np array"
-        sum = value.sum()
+    def no_zero(self,value,sum):
         if sum != 0:
-            color = np.copy(value).astype(float)*255./float(sum) # normalize between 0 and 1 and multiply by 255
+            color = value * 255. / sum  # normalize between 0 and 1 and multiply by 255
         else:
             color = np.zeros(value.shape[0])
-        self.color = np.insert(color,1,0)
+        return color
+
+    def change(self,value,total_sum=None):
+        if value.shape[0] > 3:
+            value = value[:3]
+        assert value.shape[0]>=1 and value.shape[0] <=3,"Stat object works only with two dimensionnal np array"
+
+        shape = value.shape[0]
+        if shape > 1 :
+            sum = value.sum()
+            color=self.no_zero(value,sum)
+            if shape == 2:
+                self.color = np.insert(color,1,0)
+            elif shape == 3:
+                self.color=color
+        elif shape == 1:
+            color = self.no_zero(value,total_sum)
+            self.color = np.append(color, [0, 0])
 
     def can_overlap(self):
         """Can the agent overlap with this?"""
@@ -402,7 +412,7 @@ class Grid:
     Represent a grid and operations on it
     """
 
-    def __init__(self, width, height,stat=None):
+    def __init__(self, width, height,stat=None,total_sum=None):
         assert width >= 3
         assert height >= 3
 
@@ -414,9 +424,10 @@ class Grid:
 
         if stat is not None:
             assert stat.shape[0] == width and stat.shape[1]==height, "Stat has not the right shape"
+            total_sum = total_sum if total_sum is not None else np.max(stat)
             for i in range(width):
                 for j in range(height):
-                    self.set(i,j,Stat(value=stat[i][j]))
+                    self.set(i,j,Stat(value=stat[i][j],total_sum=total_sum))
 
 
     def __contains__(self, key):
@@ -634,8 +645,7 @@ class Grid:
                 elif objType == 'lava':
                     v = Lava()
                 elif objType == 'stat':
-                    print("ayayayaie")
-                    v=Stat(value=np.asarray([0,0,0]))
+                    v=Stat(value=np.asarray([0.,0.,0.],dtype=np.float64))
                 else:
                     assert False, "unknown obj type in decode '%s'" % objType
 
@@ -700,14 +710,14 @@ class MiniGridEnv(gym.Env):
         forward = 2
 
         # Pick up an object
-        pickup = 3
+        #pickup = 3
         # Drop an object
-        drop = 4
+        #drop = 4
         # Toggle/activate an object
-        toggle = 5
+        #toggle = 5
 
         # Done completing task
-        done = 6
+        #done = 6
 
     def __init__(
         self,
@@ -763,15 +773,22 @@ class MiniGridEnv(gym.Env):
         # Starting position and direction for the agent
         self.start_pos = None
         self.start_dir = None
+        self.total_steps = 0.
         if stats is True:
-            self.stats = np.zeros((self.width,self.height)+goal.shape)
+            self.stats = np.zeros((self.width,self.height)+goal.shape,dtype=np.float64)
+        elif stats is False:
+            self.stats = None
+        elif stats is not None:
+            self.total_steps = np.sum(stats)
+            self.stats = stats
         else :
             self.stats = stats
         self.goal=goal
         self.render_stats = render_stats
-
         # Initialize the RNG
         self.seed(seed=seed)
+
+        self.obs = False
         # Initialize the state
         self.reset()
 
@@ -781,7 +798,7 @@ class MiniGridEnv(gym.Env):
         # the same seed before calling env.reset()
         stats_to_render = self.stats if self.render_stats else None
         #print(stats_to_render)
-        self._gen_grid(self.width, self.height,stats=stats_to_render)
+        self._gen_grid(self.width, self.height,stats=stats_to_render, total_sum=self.total_steps)
 
         # These fields should be defined by _gen_grid
         assert self.start_pos is not None
@@ -803,7 +820,9 @@ class MiniGridEnv(gym.Env):
 
 
         # Return first observation
-        obs = self.gen_obs()
+        obs=None
+        if self.obs:
+            obs = self.gen_obs()
         return obs
 
     def seed(self, seed=1337):
@@ -883,8 +902,8 @@ class MiniGridEnv(gym.Env):
         """
         Compute the reward to be given upon success
         """
-
-        return 1 - 0.9 * (self.step_count / self.max_steps)
+        return 1
+        #return 1 - 0.9 * (self.step_count / self.max_steps)
 
     def _rand_int(self, low, high):
         """
@@ -1149,14 +1168,17 @@ class MiniGridEnv(gym.Env):
         return obs_cell is not None and obs_cell.type == world_cell.type
 
     def change_pos(self,old_pos,new_pos,goal):
-        if self.stats is not None:
+        if goal is not None and self.stats is not None:
+            self.total_steps+=1
             x,y=new_pos
             self.stats[x][y] += goal
-            if self.grid.get(x,y)is not None and self.grid.get(x,y).type == "stat":
-                self.grid.get(x,y).change(self.stats[x][y])
+            #if self.grid.get(x,y) is not None and self.grid.get(x,y).type == "stat":
+                #self.grid.get(x,y).change(self.stats[x][y],self.total_steps)
+            #    self.grid.get(x,y).change(self.stats[x][y],np.max(self.stats))
 
-    def step(self, action,goal_end=True):
-        self.step_count += 1
+    def step(self, action):
+        self.agent_dir=action
+        action=2
 
         reward = 0
         done = False
@@ -1166,6 +1188,7 @@ class MiniGridEnv(gym.Env):
 
         # Get the contents of the cell in front of the agent
         fwd_cell = self.grid.get(*fwd_pos)
+        self.step_count += 1
 
         # Rotate left
         if action == self.actions.left:
@@ -1179,13 +1202,14 @@ class MiniGridEnv(gym.Env):
 
         # Move forward
         elif action == self.actions.forward:
+            self.change_pos(self.agent_pos, fwd_pos, self.goal)
             if fwd_cell == None or fwd_cell.can_overlap():
-                self.change_pos(self.agent_pos,fwd_pos,self.goal)
                 self.agent_pos = fwd_pos
             if fwd_cell != None and fwd_cell.type == 'goal':
-                if goal_end :
+                if self.goal is None:
                     done = True
-                reward = self._reward()
+                    reward = self._reward()
+
             if fwd_cell != None and fwd_cell.type == 'lava':
                 done = True
 
@@ -1218,8 +1242,9 @@ class MiniGridEnv(gym.Env):
 
         if self.step_count >= self.max_steps:
             done = True
-
-        obs = self.gen_obs()
+        obs=None
+        if self.obs:
+            obs = self.gen_obs()
 
         infos = {"agent_pos":self.agent_pos}
         if self.stats is not None :
@@ -1369,34 +1394,35 @@ class MiniGridEnv(gym.Env):
             (-12, -10)
         ])
         r.pop()
+        if self.obs :
+            # Compute which cells are visible to the agent
+            _, vis_mask = self.gen_obs_grid()
 
-        # Compute which cells are visible to the agent
-        _, vis_mask = self.gen_obs_grid()
+            # Compute the absolute coordinates of the bottom-left corner
+            # of the agent's view area
+            f_vec = self.dir_vec
+            r_vec = self.right_vec
+            top_left = self.agent_pos + f_vec * (AGENT_VIEW_SIZE-1) - r_vec * (AGENT_VIEW_SIZE // 2)
 
-        # Compute the absolute coordinates of the bottom-left corner
-        # of the agent's view area
-        f_vec = self.dir_vec
-        r_vec = self.right_vec
-        top_left = self.agent_pos + f_vec * (AGENT_VIEW_SIZE-1) - r_vec * (AGENT_VIEW_SIZE // 2)
 
-        # For each cell in the visibility mask
-        for vis_j in range(0, AGENT_VIEW_SIZE):
-            for vis_i in range(0, AGENT_VIEW_SIZE):
-                # If this cell is not visible, don't highlight it
-                if not vis_mask[vis_i, vis_j]:
-                    continue
+            # For each cell in the visibility mask
+            for vis_j in range(0, AGENT_VIEW_SIZE):
+                for vis_i in range(0, AGENT_VIEW_SIZE):
+                    # If this cell is not visible, don't highlight it
+                    if not vis_mask[vis_i, vis_j]:
+                        continue
 
-                # Compute the world coordinates of this cell
-                abs_i, abs_j = top_left - (f_vec * vis_j) + (r_vec * vis_i)
+                    # Compute the world coordinates of this cell
+                    abs_i, abs_j = top_left - (f_vec * vis_j) + (r_vec * vis_i)
 
-                # Highlight the cell
-                r.fillRect(
-                    abs_i * CELL_PIXELS,
-                    abs_j * CELL_PIXELS,
-                    CELL_PIXELS,
-                    CELL_PIXELS,
-                    255, 255, 255, 75
-                )
+                    # Highlight the cell
+                    r.fillRect(
+                        abs_i * CELL_PIXELS,
+                        abs_j * CELL_PIXELS,
+                        CELL_PIXELS,
+                        CELL_PIXELS,
+                        255, 255, 255, 75
+                    )
 
         r.endFrame()
 
@@ -1407,6 +1433,3 @@ class MiniGridEnv(gym.Env):
 
         return r
 
-    def put_stats(self,stats):
-        self.stats = stats
-     #   stats = stats if stats is not None else self.stats

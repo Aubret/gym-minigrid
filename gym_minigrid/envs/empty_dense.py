@@ -9,10 +9,10 @@ class EmptyDenseEnv(EmptyEnv):
     Empty grid environment, no obstacles, sparse reward
     """
 
-    def __init__(self, size=8,**kwargs ):
+    def __init__(self, size=8,max_steps=20,**kwargs ):
         super().__init__(
             size=size,
-            max_steps=20,
+            max_steps=max_steps,
             **kwargs
         )
         self.max_distance = np.linalg.norm(np.array([self.width,self.height]))#sqrt(pow(self.width,2.) +pow(self.height,2.))

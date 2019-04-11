@@ -9,7 +9,7 @@ class EmptyEnv(MiniGridEnv):
     Empty grid environment, no obstacles, sparse reward
     """
 
-    def __init__(self, size=8,max_steps=None,**kwargs):
+    def __init__(self, size=25,max_steps=None,**kwargs):
         if max_steps is None :
             max_steps = 4*size*size
         super().__init__(
@@ -23,29 +23,32 @@ class EmptyEnv(MiniGridEnv):
     def _gen_grid(self, width, height,stats=None,**kwargs):
 
         # Create an empty grid
-        self.grid = Grid(width, height,stats)
+        self.grid = Grid(width, height,stats,total_sum=None)
 
         # Generate the surrounding walls
         self.grid.wall_rect(0, 0, width, height)
 
         # Place the agent in the top-left corner
-        #self.start_pos = (1, 1)
-        #self.start_dir = 0
+        self.start_pos = (width //2, height//2)
+        self.start_dir = 0
 
 
         # Place a goal square in the bottom-right corner
-        if self.goal is None :
-            self.pos_goal = (width-2, height-2)
-        else :
-            index = np.argmax(self.goal,axis=0)
-            self.pos_goal = (width-2,1) if index ==0 else (1,height-2)
-        self.grid.set(self.pos_goal[0], self.pos_goal[1], Goal())
 
+        #if self.goal is None :
+        self.pos_goal = (width-2, height-2)
+        self.grid.set(self.pos_goal[0], self.pos_goal[1], Goal())
+        #else :
+        #    index = np.argmax(self.goal,axis=0)
+        #    self.pos_goal = (width-2,1) if index ==0 else (1,height-2)
+        #    self.grid.set(self.pos_goal[0], self.pos_goal[1], Goal())
+        """
         while True :
             self.start_pos = (random.randint(1,width-2),random.randint(1,height-2))
             if self.start_pos != self.pos_goal:
                 break
         self.start_dir = random.randint(0,3)
+        """
 
         self.mission = "get to the green goal square"
 

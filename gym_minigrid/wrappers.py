@@ -260,26 +260,29 @@ class PosWrapper(gym.core.ObservationWrapper):
         self.observation_space = spaces.Box(
             low=0,
             high=max(self.env.width,self.env.height),
-            shape=(6,),  # number of cells
+            #shape=(6,),  # number of cells
+            shape=(2,),
             dtype='uint8'
         )
     def observation(self, obs):
         dir = np.zeros(4,dtype=float)
         dir[self.env.agent_dir]=1.
         position = np.asarray([self.env.agent_pos[0],self.env.agent_pos[1]])
-        return np.concatenate((position,dir))
+        return position#np.concatenate((position,dir))
 
-"""
+
 class SimpleActionWrapper(gym.core.ActionWrapper):
+    def __init__(self, env):
+        super().__init__(env)
+        #self.__dict__.update(vars(env))  # hack to pass values to super wrapper
+        self.action_space = spaces.Discrete(4)
+
     def step(self, action):
-        action = self.action(action)
+        #dir = self.env.agent_dir
+        #while dir != action:
+        #    action = action-1 if action > 0 else 3
+        #    self.env.step(0)
+        #self.env.agent_dir = action
         return self.env.step(action)
+        #return self.env.step(2)
 
-    def reset(self):
-        return self.env.reset()
-
-    def action(self, action):
-        deprecated_warn_once("%s doesn't implement 'action' method. Maybe it implements deprecated '_action' method." % type(self))
-        return self._action(action)
-
-"""
