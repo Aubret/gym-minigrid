@@ -18,7 +18,7 @@ from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
 from baselines.common.vec_env.dummy_vec_env import DummyVecEnv
 from baselines.common import explained_variance
 
-from baselines import logger
+#from baselines import logger
 
 
 

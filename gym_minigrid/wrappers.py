@@ -33,24 +33,6 @@ class FlatImgWrapper(gym.core.ObservationWrapper):
         return obs
 
 
-class AutoReset(gym.core.Wrapper):
-    """
-    Automatically reset the environment after a done step
-    """
-    def __init__(self, env):
-        super().__init__(env)
-        #self.__dict__.update(vars(env))#add for example num env to the variables
-
-
-    def step(self, action):
-        obs, rewards, dones, info = self.env.step(action)
-        if dones :
-            obs = self.env.reset()
-        return obs,rewards,dones,info
-
-    def reset(self, **kwargs):
-        return self.env.reset(**kwargs)
-
 class ExtendNenv(gym.core.Wrapper):
     """
     Makes data compatible with openai baseline, particularly the num_envs parameter
@@ -168,14 +150,16 @@ class FullyFlatObsWrapper(gym.core.ObservationWrapper):
             shape=(self.env.width*self.env.height*3,),  # number of cells
             dtype='uint8'
         )
+        env.obs = False
     def observation(self, obs):
         #full_grid = self.env.grid.encode().flatten()
         #index = 3*(self.env.agent_pos[0]+self.env.width*self.env.agent_pos[1])
         #full_grid[index:index+3] = np.array([255, self.env.agent_dir, 0])
         full_grid = self.env.grid.encode()
-        full_grid[self.env.agent_pos[0]][self.env.agent_pos[1]] = np.array([10, self.env.agent_dir, 0])
+        full_grid[:,self.env.agent_pos[0],self.env.agent_pos[1]] = np.array([10, self.env.agent_dir, 0])
         full_grid = full_grid.flatten()
         return full_grid
+
 
 
 
@@ -189,13 +173,14 @@ class FullyObsWrapper(gym.core.ObservationWrapper):
         self.__dict__.update(vars(env))  # hack to pass values to super wrapper
         self.observation_space = spaces.Box(
             low=0,
-            high=255,
-            shape=(self.env.width, self.env.height, 3),  # number of cells
+            high=10,
+            shape=(3,self.env.width, self.env.height),  # number of cells
             dtype='uint8'
         )
+        self.env.obs=True
     def observation(self, obs):
         full_grid = self.env.grid.encode()
-        full_grid[self.env.agent_pos[0]][self.env.agent_pos[1]] = np.array([255, self.env.agent_dir, 0])
+        full_grid[:,self.env.agent_pos[0],self.env.agent_pos[1]] = np.array([10, self.env.agent_dir, 0])
         return full_grid
 
 class FlatObsWrapper(gym.core.ObservationWrapper):
@@ -249,6 +234,44 @@ class FlatObsWrapper(gym.core.ObservationWrapper):
 
         return obs
 
+class OnlyAddInfo(gym.core.ObservationWrapper):
+    def __init__(self, env):
+        super().__init__(env)
+        assert hasattr(env.unwrapped, "add_obs"),"need add_obs attributes in gym env"
+        self.observation_space = spaces.Box(
+            low=0,
+            high=3,
+            # shape=(6,),  # number of cells
+            shape=(env.unwrapped.add_obs,),
+            dtype='float32'
+        )
+
+    def observation(self, obs):
+        obs = self.unwrapped.addings
+        return obs#np.concatenate((position,dir))
+
+class AddInfo(gym.core.ObservationWrapper):
+    def __init__(self, env):
+        super().__init__(env)
+        if hasattr(env.unwrapped, "add_obs"):
+            adds=env.unwrapped.add_obs
+            self.modified = True
+        else :
+            self.modified=False
+            adds=0
+        self.observation_space = spaces.Box(
+            low=0,
+            high=3,
+            # shape=(6,),  # number of cells
+            shape=(env.observation_space.shape[0] + adds,),
+            dtype=env.observation_space.dtype
+        )
+
+    def observation(self, obs):
+        if self.modified:
+            obs = np.concatenate((obs,self.unwrapped.addings))
+        return obs#np.concatenate((position,dir))
+
 class PosWrapper(gym.core.ObservationWrapper):
     """
     Fully observable gridworld using a compact grid encoding
@@ -259,16 +282,24 @@ class PosWrapper(gym.core.ObservationWrapper):
         self.__dict__.update(vars(env))  # hack to pass values to super wrapper
         self.observation_space = spaces.Box(
             low=0,
-            high=max(self.env.width,self.env.height),
+            high=3,
             #shape=(6,),  # number of cells
             shape=(2,),
-            dtype='uint8'
+            dtype='float32'
         )
+        self.half_gridsize = self.env.width/2
+        self.unwrapped.obs=False
+        #print(self.env.width)
+        #print(self.env.height)
+
     def observation(self, obs):
         dir = np.zeros(4,dtype=float)
-        dir[self.env.agent_dir]=1.
-        position = np.asarray([self.env.agent_pos[0],self.env.agent_pos[1]])
-        return position#np.concatenate((position,dir))
+        dir[self.unwrapped.agent_dir]=1.
+
+        position = (np.asarray([self.unwrapped.agent_pos[0],self.unwrapped.agent_pos[1]] )-self.half_gridsize)*3/self.half_gridsize
+        etat=position
+        #etat=np.concatenate((position,dir))
+        return etat#np.concatenate((position,dir))
 
 
 class SimpleActionWrapper(gym.core.ActionWrapper):
@@ -276,13 +307,107 @@ class SimpleActionWrapper(gym.core.ActionWrapper):
         super().__init__(env)
         #self.__dict__.update(vars(env))  # hack to pass values to super wrapper
         self.action_space = spaces.Discrete(4)
+        self.unwrapped.simple_direction=True
 
     def step(self, action):
-        #dir = self.env.agent_dir
-        #while dir != action:
-        #    action = action-1 if action > 0 else 3
-        #    self.env.step(0)
-        #self.env.agent_dir = action
         return self.env.step(action)
-        #return self.env.step(2)
 
+
+class MoveReward(gym.core.Wrapper):
+    """
+    When the agent reach th reward, he waits one more step in the exact same position.
+    Then he can compute the Q-value of state where he never goes without diverging
+    """
+
+    def __init__(self, env):
+        super().__init__(env)
+        self.delayed_reward=False
+
+    def reset(self):
+        return self.env.reset()
+
+    def step(self, action):
+
+        if self.delayed_reward :
+            self.delayed_reward=False
+            return self.old_obs,self.old_reward,self.old_done,self.old_info
+
+        obs, reward, done, info = self.env.step(action)
+        if info["reached"]:
+            self.delayed_reward=True
+            self.old_obs=obs
+            self.old_reward=reward
+            self.old_info = info
+            self.old_done=done
+
+            return obs, 0., False, info
+        else:
+            return obs, reward, done, info
+
+class AllImgObsWrapper(gym.core.ObservationWrapper):
+    """
+    Use rgb image as the only observation output
+    """
+
+    def __init__(self, env):
+        super().__init__(env)
+        # Hack to pass values to super wrapper
+        self.__dict__.update(vars(env))
+        self.observation_space = spaces.Box(
+            low=0,
+            high=255,
+            #shape=(6,),  # number of cells
+            shape=(640,640,3),
+            dtype='float32'
+        )
+
+    def observation(self, obs):
+        obs = self.env.render(mode='rgb_array')
+        return obs
+
+class OneFullyFlatObsWrapper(gym.core.ObservationWrapper):
+    """
+    Fully observable gridworld using a compact grid encoding
+    """
+
+    def __init__(self, env):
+        super().__init__(env)
+        self.__dict__.update(vars(env))  # hack to pass values to super wrapper
+        self.observation_space = spaces.Box(
+            low=0,
+            high=10,
+            shape=(self.env.width*self.env.height,),  # number of cells
+            dtype='uint8'
+        )
+        env.obs = False
+    def observation(self, obs):
+        #full_grid = self.env.grid.encode().flatten()
+        #index = 3*(self.env.agent_pos[0]+self.env.width*self.env.agent_pos[1])
+        #full_grid[index:index+3] = np.array([255, self.env.agent_dir, 0])
+        full_grid = self.env.grid.encode()[0]
+        full_grid[self.env.agent_pos[0],self.env.agent_pos[1]] = np.array([10])
+        full_grid = full_grid.flatten()
+        return full_grid
+
+
+
+
+class OneFullyObsWrapper(gym.core.ObservationWrapper):
+    """
+    Fully observable gridworld using a compact grid encoding
+    """
+
+    def __init__(self, env):
+        super().__init__(env)
+        self.__dict__.update(vars(env))  # hack to pass values to super wrapper
+        self.observation_space = spaces.Box(
+            low=0,
+            high=10,
+            shape=(1,self.env.width, self.env.height),  # number of cells
+            dtype='uint8'
+        )
+        self.env.obs=True
+    def observation(self, obs):
+        full_grid = self.env.grid.encode()[0]
+        full_grid[self.env.agent_pos[0],self.env.agent_pos[1]] = np.array([10])
+        return full_grid

@@ -9,27 +9,24 @@ class EmptyEnv(MiniGridEnv):
     Empty grid environment, no obstacles, sparse reward
     """
 
-    def __init__(self, size=25,max_steps=None,**kwargs):
-        if max_steps is None :
-            max_steps = 4*size*size
+    def __init__(self, **kwargs):
         super().__init__(
-            grid_size=size,
-            max_steps=max_steps,
             # Set this to True for maximum speed
             see_through_walls=True,
             **kwargs
         )
 
-    def _gen_grid(self, width, height,stats=None,**kwargs):
+    def _gen_grid(self, width, height,total_sum=None,**kwargs):
 
         # Create an empty grid
-        self.grid = Grid(width, height,stats,total_sum=None)
+        self.grid = Grid(width, height,total_sum=None,**kwargs)#**kwargs)
 
         # Generate the surrounding walls
         self.grid.wall_rect(0, 0, width, height)
 
         # Place the agent in the top-left corner
         self.start_pos = (width //2, height//2)
+        #self.start_pos=(1,1)
         self.start_dir = 0
 
 
@@ -51,6 +48,20 @@ class EmptyEnv(MiniGridEnv):
         """
 
         self.mission = "get to the green goal square"
+
+    def _reward(self):
+
+        """
+        Compute the reward to be given upon success
+        """
+        x,y = self.agent_pos
+        goal_x, goal_y = self.pos_goal
+
+        reward = -np.sqrt(math.pow(x-goal_x,2)+math.pow(y-goal_y,2)) / self.width
+        return reward
+
+        #return 1
+        #return 1 - 0.9 * (self.step_count / self.max_steps)
 
 class EmptyEnv6x6(EmptyEnv):
     def __init__(self):

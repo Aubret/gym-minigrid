@@ -51,7 +51,7 @@ OBJECT_TO_IDX = {
     'goal'          : 8,
     'lava'          : 9,
     'stat'          : 1 #same as empty for the agent
-}
+}#1O for agent position
 
 IDX_TO_OBJECT = dict(zip(OBJECT_TO_IDX.values(), OBJECT_TO_IDX.keys()))
 
@@ -412,7 +412,7 @@ class Grid:
     Represent a grid and operations on it
     """
 
-    def __init__(self, width, height,stat=None,total_sum=None):
+    def __init__(self, width, height,stats=None,total_sum=None):
         assert width >= 3
         assert height >= 3
 
@@ -422,12 +422,14 @@ class Grid:
 
         self.grid = [None] * width * height
 
-        if stat is not None:
-            assert stat.shape[0] == width and stat.shape[1]==height, "Stat has not the right shape"
-            total_sum = total_sum if total_sum is not None else np.max(stat)
+        self.stats=stats
+        if self.stats is not None:
+            assert stats.shape[0] == width and stats.shape[1]==height, "Stat has not the right shape"
+            self.total_sum = total_sum if total_sum is not None else np.max(self.stats)
             for i in range(width):
                 for j in range(height):
-                    self.set(i,j,Stat(value=stat[i][j],total_sum=total_sum))
+                    self.set(i,j,Stat(value=self.stats[i][j], total_sum=self.total_sum))
+
 
 
     def __contains__(self, key):
@@ -457,10 +459,18 @@ class Grid:
         from copy import deepcopy
         return deepcopy(self)
 
+
     def set(self, i, j, v):
         assert i >= 0 and i < self.width
         assert j >= 0 and j < self.height
-        self.grid[j * self.width + i] = v
+        if v is None:
+            if self.stats is not None:
+                self.grid[j * self.width + i]= Stat(value=self.stats[i][j], total_sum=self.total_sum)
+            else:
+                self.grid[j * self.width + i]= None
+        else:
+            self.grid[j * self.width + i] = v
+
 
     def get(self, i, j):
         assert i >= 0 and i < self.width
@@ -580,16 +590,16 @@ class Grid:
         if vis_mask is None:
             vis_mask = np.ones((self.width, self.height), dtype=bool)
 
-        array = np.zeros((self.width, self.height, 3), dtype='uint8')
+        array = np.zeros((3,self.width, self.height), dtype='uint8')
         for i in range(self.width):
             for j in range(self.height):
                 if vis_mask[i, j]:
                     v = self.get(i, j)
 
                     if v is None:
-                        array[i, j, 0] = OBJECT_TO_IDX['empty']
-                        array[i, j, 1] = 0
-                        array[i, j, 2] = 0
+                        array[0,i, j] = OBJECT_TO_IDX['empty']
+                        array[1,i, j] = 0
+                        array[2,i, j] = 0
                     else:
                         # State, 0: open, 1: closed, 2: locked
                         state = 0
@@ -598,9 +608,9 @@ class Grid:
                         if hasattr(v, 'is_locked') and v.is_locked:
                             state = 2
 
-                        array[i, j, 0] = OBJECT_TO_IDX[v.type]
-                        array[i, j, 1] = COLOR_TO_IDX[v.color] if isinstance(v.color, str) else 0
-                        array[i, j, 2] = state
+                        array[0,i, j] = OBJECT_TO_IDX[v.type]
+                        array[1,i, j] = COLOR_TO_IDX[v.color] if isinstance(v.color, str) else 0
+                        array[2,i, j] = state
 
         return array
 
@@ -645,7 +655,7 @@ class Grid:
                 elif objType == 'lava':
                     v = Lava()
                 elif objType == 'stat':
-                    v=Stat(value=np.asarray([0.,0.,0.],dtype=np.float64))
+                    v=Stat(value=np.asarray([0.,0.,0.],dtype=np.float32))
                 else:
                     assert False, "unknown obj type in decode '%s'" % objType
 
@@ -710,11 +720,11 @@ class MiniGridEnv(gym.Env):
         forward = 2
 
         # Pick up an object
-        #pickup = 3
+        pickup = 3
         # Drop an object
-        #drop = 4
+        drop = 4
         # Toggle/activate an object
-        #toggle = 5
+        toggle = 5
 
         # Done completing task
         #done = 6
@@ -722,20 +732,21 @@ class MiniGridEnv(gym.Env):
     def __init__(
         self,
         goal=None,
-        grid_size=None,
+        size=20,
         width=None,
         height=None,
         max_steps=100,
         see_through_walls=False,
         seed=1337,
         stats=None,
-        render_stats=False
+        render_stats=False,
+        pos=False
     ):
         # Can't set both grid_size and width/height
-        if grid_size:
+        if size:
             assert width == None and height == None
-            width = grid_size
-            height = grid_size
+            width = size
+            height = size
 
         # Action enumeration for this environment
         self.actions = MiniGridEnv.Actions
@@ -765,20 +776,21 @@ class MiniGridEnv(gym.Env):
         self.obs_render = None
 
         # Environment configuration
-        self.width = width
-        self.height = height
+        self.width = width if width is not None else size
+        self.height = height if height is not None else size
         self.max_steps = max_steps
         self.see_through_walls = see_through_walls
 
         # Starting position and direction for the agent
         self.start_pos = None
         self.start_dir = None
+        self.change_start_pos = pos
         self.total_steps = 0.
-        if stats is True:
-            self.stats = np.zeros((self.width,self.height)+goal.shape,dtype=np.float64)
-        elif stats is False:
+        if stats is True: #We want to count the numper of pass for every goals
+            self.stats = np.zeros((self.width,self.height)+goal.shape,dtype=np.float32)
+        elif stats is False: #No stats at all are necessary
             self.stats = None
-        elif stats is not None:
+        elif stats is not None: #We want to print stats
             self.total_steps = np.sum(stats)
             self.stats = stats
         else :
@@ -788,7 +800,9 @@ class MiniGridEnv(gym.Env):
         # Initialize the RNG
         self.seed(seed=seed)
 
+        #Modified by wrappers
         self.obs = False
+        self.simple_direction=False
         # Initialize the state
         self.reset()
 
@@ -798,7 +812,7 @@ class MiniGridEnv(gym.Env):
         # the same seed before calling env.reset()
         stats_to_render = self.stats if self.render_stats else None
         #print(stats_to_render)
-        self._gen_grid(self.width, self.height,stats=stats_to_render, total_sum=self.total_steps)
+        self._gen_grid(self.width, self.height,stats=stats_to_render, total_sum=None)
 
         # These fields should be defined by _gen_grid
         assert self.start_pos is not None
@@ -809,7 +823,10 @@ class MiniGridEnv(gym.Env):
         assert start_cell is None or start_cell.can_overlap()
 
         # Place the agent in the starting position and direction
-        self.agent_pos = self.start_pos
+        if not(self.change_start_pos):
+            self.agent_pos = self.start_pos
+        else:
+            self.agent_pos = (2,2)
         self.agent_dir = self.start_dir
 
         # Item picked up, being carried, initially nothing
@@ -1006,7 +1023,8 @@ class MiniGridEnv(gym.Env):
             ))
 
             # Don't place the object on top of another object
-            if self.grid.get(*pos) != None:
+            ob = self.grid.get(*pos)
+            if ob != None and not(isinstance(ob,Stat)):
                 continue
 
             # Don't place the object where the agent is
@@ -1167,7 +1185,7 @@ class MiniGridEnv(gym.Env):
 
         return obs_cell is not None and obs_cell.type == world_cell.type
 
-    def change_pos(self,old_pos,new_pos,goal):
+    def change_pos(self,new_pos,goal):
         if goal is not None and self.stats is not None:
             self.total_steps+=1
             x,y=new_pos
@@ -1177,14 +1195,19 @@ class MiniGridEnv(gym.Env):
             #    self.grid.get(x,y).change(self.stats[x][y],np.max(self.stats))
 
     def step(self, action):
-        self.agent_dir=action
-        action=2
+        if self.simple_direction:
+            self.agent_dir=action
+            action=2
 
         reward = 0
         done = False
+        infos={"reached":False}
 
         # Get the position in front of the agent
-        fwd_pos = self.front_pos
+        try:
+            fwd_pos = self.front_pos
+        except:
+            print(self.agent_pos,self.agent_dir,self.simple_direction)
 
         # Get the contents of the cell in front of the agent
         fwd_cell = self.grid.get(*fwd_pos)
@@ -1202,17 +1225,17 @@ class MiniGridEnv(gym.Env):
 
         # Move forward
         elif action == self.actions.forward:
-            self.change_pos(self.agent_pos, fwd_pos, self.goal)
-            if fwd_cell == None or fwd_cell.can_overlap():
+            if fwd_cell is None or fwd_cell.can_overlap():
                 self.agent_pos = fwd_pos
+            self.change_pos(self.agent_pos, self.goal)
             if fwd_cell != None and fwd_cell.type == 'goal':
                 if self.goal is None:
                     done = True
-                    reward = self._reward()
+                    infos["reached"]=True
+                    #reward = self._reward()
 
             if fwd_cell != None and fwd_cell.type == 'lava':
                 done = True
-
         # Pick up an object
         elif action == self.actions.pickup:
             if fwd_cell and fwd_cell.can_pickup():
@@ -1240,13 +1263,14 @@ class MiniGridEnv(gym.Env):
         else:
             assert False, "unknown action"
 
+        reward=self._reward()
         if self.step_count >= self.max_steps:
             done = True
         obs=None
         if self.obs:
             obs = self.gen_obs()
 
-        infos = {"agent_pos":self.agent_pos}
+        infos["agent_pos"]=self.agent_pos
         if self.stats is not None :
             infos["stats"]=self.stats
 

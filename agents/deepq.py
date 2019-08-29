@@ -39,7 +39,7 @@ class deepq:
         total_timesteps=100000,
         buffer_size=50000,
         exploration_fraction=0.2,
-        exploration_final_eps=0.02,
+        exploration_final_eps=0.05,
         batch_size=32,
         print_freq=50,
         checkpoint_freq=10000,
@@ -77,7 +77,8 @@ class deepq:
             optimizer=tf.train.AdamOptimizer(learning_rate=lr),
             gamma=gamma,
             grad_norm_clipping=10,
-            param_noise=param_noise
+            param_noise=param_noise,
+            double_q=True
         )
 
         act_params = {
@@ -91,7 +92,7 @@ class deepq:
         self.replay_buffer = ReplayBuffer(buffer_size)
         # Create the schedule for exploration starting from 1 (every action is random) down to
         # 0.02 (98% of actions are selected according to values predicted by the model).
-        self.exploration = LinearSchedule(schedule_timesteps=int(exploration_fraction * total_timesteps), initial_p=1.0, final_p=exploration_final_eps)
+        self.exploration = LinearSchedule(schedule_timesteps=int(exploration_fraction * total_timesteps), initial_p=1., final_p=exploration_final_eps)
 
         # Initialize the parameters and copy them to the target network.
         U.initialize()
@@ -115,7 +116,7 @@ class deepq:
         if done and len(self.episode_rewards) % self.print_freq == 0:
             logger.record_tabular("steps", self.learning_steps)
             logger.record_tabular("episodes", len(self.episode_rewards))
-            logger.record_tabular("mean episode reward", round(np.mean(self.episode_rewards[-101:-1]), 1))
+            logger.record_tabular("mean episode reward", round(np.mean(self.episode_rewards[-101:-1]), 2))
             logger.dump_tabular()
         return action,obs,rew,done
 
