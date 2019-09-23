@@ -1232,7 +1232,7 @@ class MiniGridEnv(gym.Env):
                 if self.goal is None:
                     done = True
                     infos["reached"]=True
-                    #reward = self._reward()
+                    reward = self._reward()
 
             if fwd_cell != None and fwd_cell.type == 'lava':
                 done = True
@@ -1263,7 +1263,7 @@ class MiniGridEnv(gym.Env):
         else:
             assert False, "unknown action"
 
-        reward=self._reward()
+        #reward=self._reward()
         if self.step_count >= self.max_steps:
             done = True
         obs=None

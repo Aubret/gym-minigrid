@@ -54,13 +54,13 @@ class EmptyEnv(MiniGridEnv):
         """
         Compute the reward to be given upon success
         """
-        x,y = self.agent_pos
-        goal_x, goal_y = self.pos_goal
+        #x,y = self.agent_pos
+        #goal_x, goal_y = self.pos_goal
 
-        reward = -np.sqrt(math.pow(x-goal_x,2)+math.pow(y-goal_y,2)) / self.width
-        return reward
+        #reward = -np.sqrt(math.pow(x-goal_x,2)+math.pow(y-goal_y,2)) / self.width
+        #return reward
 
-        #return 1
+        return 1
         #return 1 - 0.9 * (self.step_count / self.max_steps)
 
 class EmptyEnv6x6(EmptyEnv):
