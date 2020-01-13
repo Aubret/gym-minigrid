@@ -339,7 +339,6 @@ class MoveReward(gym.core.Wrapper):
             self.old_reward=reward
             self.old_info = info
             self.old_done=done
-
             return obs, 0., False, info
         else:
             return obs, reward, done, info

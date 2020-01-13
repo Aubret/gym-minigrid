@@ -33,8 +33,12 @@ class EmptyEnv(MiniGridEnv):
         # Place a goal square in the bottom-right corner
 
         #if self.goal is None :
+        ###############The goal definition
         self.pos_goal = (width-2, height-2)
         self.grid.set(self.pos_goal[0], self.pos_goal[1], Goal())
+
+
+
         #else :
         #    index = np.argmax(self.goal,axis=0)
         #    self.pos_goal = (width-2,1) if index ==0 else (1,height-2)
@@ -70,6 +74,22 @@ class EmptyEnv6x6(EmptyEnv):
 class EmptyEnv16x16(EmptyEnv):
     def __init__(self):
         super().__init__(size=16)
+
+class EmptyWallEnv(EmptyEnv):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def _gen_grid(self, width, height,*args,**kwargs):
+        super()._gen_grid( width, height,*args,**kwargs)
+        self.grid.vert_wall(width//2, (height//2)-5, 4)
+
+class EmptyWallHorzEnv(EmptyEnv):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def _gen_grid(self, width, height,*args,**kwargs):
+        super()._gen_grid( width, height,*args,**kwargs)
+        self.grid.horz_wall(width//2-6, (height//2), 5)
 
 register(
     id='MiniGrid-Empty-6x6-v0',

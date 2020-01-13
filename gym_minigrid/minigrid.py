@@ -1264,8 +1264,8 @@ class MiniGridEnv(gym.Env):
             assert False, "unknown action"
 
         #reward=self._reward()
-        if self.step_count >= self.max_steps:
-            done = True
+        #if self.step_count >= self.max_steps:
+        #    done = True
         obs=None
         if self.obs:
             obs = self.gen_obs()
@@ -1379,7 +1379,6 @@ class MiniGridEnv(gym.Env):
         """
         Render the whole-grid human view
         """
-
         if close:
             if self.grid_render:
                 self.grid_render.close()
