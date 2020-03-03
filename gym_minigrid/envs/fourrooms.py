@@ -64,26 +64,26 @@ class FourRoomsEnv(MiniGridEnv):
                     self.grid.set(*pos, None)
 
         # Randomize the player start position and orientation
-        # if self._agent_default_pos is not None:
-        #     self.start_pos = self._agent_default_pos
-        #     self.grid.set(*self._agent_default_pos, None)
-        #     self.start_dir = self._rand_int(0, 4)  # assuming random start direction
-        # else:
-        #     self.start_pos = (1*width//4,1*height//4)
-        #     self.start_dir = 0
-
-        self.place_agent()
-
-
-        if self._goal_default_pos is not None:
-            goal = Goal()
-            self.grid.set(*self._goal_default_pos, goal)
-            goal.init_pos, goal.cur_pos = self._goal_default_pos
+        if self._agent_default_pos is not None:
+            self.start_pos = self._agent_default_pos
+            self.grid.set(*self._agent_default_pos, None)
+            self.start_dir = self._rand_int(0, 4)  # assuming random start direction
         else:
-            self.grid.set(3*width//4,3*height//4,Goal())
-            #self.place_obj(Goal())
+            self.start_pos = (1*width//4,1*height//4)
+            self.start_dir = 0
 
-        #self.mission = 'Reach the goal'
+        #self.place_agent()
+
+
+        # if self._goal_default_pos is not None:
+        #     goal = Goal()
+        #     self.grid.set(*self._goal_default_pos, goal)
+        #     goal.init_pos, goal.cur_pos = self._goal_default_pos
+        # else:
+        #     self.grid.set(3*width//4,3*height//4,Goal())
+        #     #self.place_obj(Goal())
+
+        self.mission = 'Reach the goal'
 
     def reset(self):
         MiniGridEnv.reset(self)

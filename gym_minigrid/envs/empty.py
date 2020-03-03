@@ -34,8 +34,8 @@ class EmptyEnv(MiniGridEnv):
 
         #if self.goal is None :
         ###############The goal definition
-        self.pos_goal = (width-2, height-2)
-        self.grid.set(self.pos_goal[0], self.pos_goal[1], Goal())
+        #self.pos_goal = (width-2, height-2)
+        #self.grid.set(self.pos_goal[0], self.pos_goal[1], Goal())
 
 
 

@@ -16,7 +16,6 @@ def main():
     for i in range(3000):
         model.learn(i)
         num_timesteps+=1
-            #actions = env.action_space.sample()
 
     obs, done=env.reset(), False
     for _ in range(100):
@@ -25,7 +24,6 @@ def main():
             obs, action,rew, done = model.step(obs)
             env.render()
             episode_rew += rew
-        print("Episode reward", episode_rew)
 
     env.close()
 

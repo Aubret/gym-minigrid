@@ -9,16 +9,7 @@ import time
 
 
 def main():
-    #env = gym.make("CartPole-v0")
-    #env=ExtendNenv(ImgObsWrapper(EmptyEnv())) #gym.make("MiniGrid-Empty-8x8-v0"))
-    #env=ImgObsWrapper(EmptyEnv()) #gym.make("MiniGrid-Empty-8x8-v0"))
     env= SimpleActionWrapper(PosWrapper(EmptyEnv()))
-    #wrap= ImgObsWrapper(env)
-    #env.observation_space = env.observation_space.spaces.items()
-    #for key,obs_space in env.observation_space.spaces.items():
-     #   env.observation_space = obs_space
-    #break
-    #print(env.observation_space)
     model = deepq(env=env, network='mlp', total_timesteps=3000, lr=5e-4, buffer_size=1000, gamma=0.9, print_freq=20,target_network_update_freq=200,hiddens=[64,64],dueling=False)
 
     for i in range(400):
