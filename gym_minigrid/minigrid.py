@@ -388,7 +388,10 @@ class Stat(WorldObj):
             elif shape == 3:
                 self.color=color
         elif shape == 1:
-            color = self.no_zero(value,total_sum)
+            if value.dtype == np.float32:
+                color=value*255
+            else:
+                color = self.no_zero(value.astype(np.float32),total_sum)
             self.color = np.append(color, [0, 0])
 
     def can_overlap(self):
@@ -1263,9 +1266,6 @@ class MiniGridEnv(gym.Env):
         else:
             assert False, "unknown action"
 
-        #reward=self._reward()
-        #if self.step_count >= self.max_steps:
-        #    done = True
         obs=None
         if self.obs:
             obs = self.gen_obs()
