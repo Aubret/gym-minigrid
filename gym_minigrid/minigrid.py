@@ -369,6 +369,9 @@ class Stat(WorldObj):
 
     def no_zero(self,value,sum):
         if sum != 0:
+            minimum = np.amin(value)
+            if minimum < 0:
+                value=value-minimum
             color = value * 255. / sum  # normalize between 0 and 1 and multiply by 255
         else:
             color = np.zeros(value.shape[0])
