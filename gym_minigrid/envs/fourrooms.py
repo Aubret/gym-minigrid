@@ -63,7 +63,6 @@ class FourRoomsEnv(MiniGridEnv):
                     self.pos_doors.append(pos)
                     self.grid.set(*pos, None)
 
-        #Randomize the player start position and orientation
         if self._agent_default_pos is not None:
             self.start_pos = self._agent_default_pos
             self.grid.set(*self._agent_default_pos, None)
@@ -76,6 +75,7 @@ class FourRoomsEnv(MiniGridEnv):
             self.place_agent()
 
 
+
         # if self._goal_default_pos is not None:
         #     goal = Goal()
         #     self.grid.set(*self._goal_default_pos, goal)
@@ -84,7 +84,7 @@ class FourRoomsEnv(MiniGridEnv):
         #     self.grid.set(3*width//4,3*height//4,Goal())
         #     #self.place_obj(Goal())
 
-        #self.mission = 'Reach the goal'
+        self.mission = 'Reach the goal'
 
     def reset(self):
         MiniGridEnv.reset(self)

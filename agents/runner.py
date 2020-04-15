@@ -24,19 +24,11 @@ class Runner(AbstractEnvRunner):
         if self.gamma > 0.0:
             # Discount/bootstrap off value fn
             last_values = self.model.value(last_obs, S=None, M=epi_dones).tolist()
-            print(epi_rewards)
-            print(epi_dones)
-            print(last_values)
             for n, (rewards, dones, value) in enumerate(zip(epi_rewards, epi_dones, last_values)):
-                #rewards = rewards.tolist()
-                #dones = dones.tolist()
-                #print("----")
-                #print(rewards)
-                #print(dones)
+
 
                 if dones[-1] == 0:
                     rewards = discount_with_dones(rewards+[value], dones+[0], self.gamma)[:-1]
-                    #print(rewards)
                 else:
                     rewards = discount_with_dones(rewards, dones, self.gamma)
                 epi_rewards[n] = rewards

@@ -34,8 +34,8 @@ class EmptyEnv(MiniGridEnv):
 
         #if self.goal is None :
         ###############The goal definition
-        self.pos_goal = (width-2, height-2)
-        self.grid.set(self.pos_goal[0], self.pos_goal[1], Goal())
+        #self.pos_goal = (width-2, height-2)
+        #self.grid.set(self.pos_goal[0], self.pos_goal[1], Goal())
 
 
 
@@ -81,7 +81,7 @@ class EmptyWallEnv(EmptyEnv):
 
     def _gen_grid(self, width, height,*args,**kwargs):
         super()._gen_grid( width, height,*args,**kwargs)
-        self.grid.vert_wall(width//2, (height//2)-5, 4)
+        self.grid.vert_wall(width//2 +2 , 1,(height//2)+6)
 
 class EmptyWallHorzEnv(EmptyEnv):
     def __init__(self, **kwargs):
